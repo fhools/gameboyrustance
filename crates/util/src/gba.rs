@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::fs::File;
 use std::path::Path;
+use std::convert::TryFrom;
 
 pub struct GbaCartridgeHeader {
     pub rom_entry_point: u32,
@@ -58,23 +59,42 @@ impl GbaData  {
         if let Err(err) = len {
             Err(err)
         } else {
-            Ok(GbaData { data: buf })
+            if len < GbaCartridgeHeader::RAM_ENTRY_POINT_OFFSET as u32 {
+                Err(io::Error::new(io::ErrorKind::InvalidData, "insufficient data"))
+            } else {
+                Ok(GbaData::from_slice(&buf[..]))
+            }
         }
     }
 
     fn from_slice<T: AsRef<[u8]>>(buf: T) -> Self {
-        GbaData {
-            header: Default::default(),
-            data: buf.as_ref().to_vec()
-        }
+        let mut gba_header  =  GbaCartridgeHeader {
+            rom_entry_point: 0,
+            nintendo_logo: [0; 156],
+            game_title: [0; 12],
+            game_code: [0; 4],
+            maker_code: [0; 2],
+            fixed_value: 0,
+            main_unit_code: 0,
+            device_type: 0,
+            reserved_area1: [0; 7],
+            software_version: 0,
+            checksum: 0,
+            reserved_area2: [0; 2],
+            ram_entry_point: 0,
+            boot_mode: 0,
+            slave_id_number: 0,
+            not_used_padding: [0; 26],
+            joybus_entry_point: 0
+        };
+        gba_header.rom_entry_point = u32::from_le_bytes( 
+            <[u8; 4]>::try_from(&buf[GbaCartridgeHeader::ROM_ENTRY_POINT_OFFSET..GbaCartridgeHeader::NINTENDO_LOGO_OFFSET]).unwrap());
+
+        GbaData { header: gba_header, data: vec![]}
     }
 
     fn rom_entry(&self) -> u32 {
-        let mut addr: u32 = self.data[0] as u32;
-        addr |= (self.data[1] as u32) << 8;
-        addr |= (self.data[2] as u32) << 16;
-        addr |= (self.data[3] as u32) << 24;
-        addr
+        self.header.rom_entry_point
     }
 }
 

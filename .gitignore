@@ -1,5 +1,3 @@
 **/target
-src/types/Cargo.lock
-src/utils/Cargo.lock
+crates/*/Cargo.lock
 .*.swp
-*.ppm
