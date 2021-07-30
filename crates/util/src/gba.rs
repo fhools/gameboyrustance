@@ -89,7 +89,7 @@ impl GbaData  {
             joybus_entry_point: 0
         };
         let mut buf2: &[u8] = &buf.as_ref()[GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR..GbaCartridgeHeader::NINTENDO_LOGO_OFFSET];
-        gba_header.rom_entry_point = u32::from_le_bytes(buf2.try_into().unwrap());
+        gba_header.rom_entry_branch_instr = u32::from_le_bytes(buf2.try_into().unwrap());
 
         buf2 = &buf.as_ref()[GbaCartridgeHeader::NINTENDO_LOGO_OFFSET..GbaCartridgeHeader::GAME_TITLE_LOGO_OFFSET]; 
         gba_header.nintendo_logo.clone_from_slice(buf2);
@@ -114,8 +114,8 @@ impl GbaData  {
         gba_header.checksum = buf.as_ref()[GbaCartridgeHeader::CHECKSUM_OFFSET];
        
         // TODO: Implement Multiboot stuff
-        if buf.as_ref().len() > GbaCartridgeHeader::RAM_ENTRY_POINT_OFFSET  {
-            buf2 = &buf.as_ref()[GbaCartridgeHeader::RESERVED_AREA2_OFFSET..GbaCartridgeHeader::RAM_ENTRY_POINT_OFFSET];
+        if buf.as_ref().len() > GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR {
+            buf2 = &buf.as_ref()[GbaCartridgeHeader::RESERVED_AREA2_OFFSET..GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR];
             gba_header.reserved_area1.clone_from_slice(buf2);
         }
 
@@ -123,7 +123,7 @@ impl GbaData  {
     }
 
     fn rom_entry(&self) -> u32 {
-        self.header.rom_entry_point
+        self.header.rom_entry_branch_instr
     }
 
     fn nintendo_logo(&self) -> Vec<u8> {
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn gbadata_from_slice() {
-        let mut data: Vec<u8> = vec![0x0u8; GbaCartridgeHeader::RAM_ENTRY_POINT_OFFSET];
+        let mut data: Vec<u8> = vec![0x0u8; GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR];
         data.splice(0..4, [0xEFu8, 0xBEu8, 0xADu8, 0xDEu8].iter().cloned());
         let gba = GbaData::from_slice(&data[..]);
         println!("addr: {:x}", gba.rom_entry());
