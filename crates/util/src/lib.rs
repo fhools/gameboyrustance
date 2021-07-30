@@ -3,7 +3,7 @@ mod gba;
 
 pub fn get_bits(i: u32, start: usize, end: usize) -> u32 {
     let num_bits = end - start;
-    let mask  = (1 << num_bits) -1;
+    let mask  = (1 << num_bits) - 1;
     let result = i >> start;
     result & mask
 }
@@ -13,7 +13,7 @@ mod tests {
     #[test]
     fn test_get_bits() {
         let a = 0xDEADBEEF;
-        let b = get_bits(a,4,12);
-        println!("{:x}", b);
+        let b = get_bits(a,4,16);
+        println!("bits {}-{} {:x}",4,12, b);
     }
 }

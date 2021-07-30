@@ -38,7 +38,7 @@ impl GbaCartridgeHeader {
     const SOFTWARE_VERSION_OFFSET: usize = 0xBC;
     const CHECKSUM_OFFSET: usize = 0xBD;
     const RESERVED_AREA2_OFFSET: usize = 0xBE;
-    const RAM_ENTRY_BRANCH_INSTR: usize = 0xC0;
+    const RAM_ENTRY_BRANCH_INSTR_OFFSET: usize = 0xC0;
     const BOOT_MODE_OFFSET: usize = 0xC4;
     const SLAVE_ID_NUMBER_OFFSET: usize = 0xC5;
     const NOT_USED_PADDING_OFFSET: usize = 0xC6;
@@ -60,7 +60,7 @@ impl GbaData  {
         if let Err(err) = len {
             Err(err)
         } else {
-            if len.unwrap() < GbaCartridgeHeader::RAM_ENTRY_BRANCH_INSTR as usize {
+            if len.unwrap() < GbaCartridgeHeader::RAM_ENTRY_BRANCH_INSTR_OFFSET as usize {
                 Err(io::Error::new(io::ErrorKind::InvalidData, "insufficient data"))
             } else {
                 Ok(GbaData::from_slice(&buf[..]))
@@ -114,8 +114,8 @@ impl GbaData  {
         gba_header.checksum = buf.as_ref()[GbaCartridgeHeader::CHECKSUM_OFFSET];
        
         // TODO: Implement Multiboot stuff
-        if buf.as_ref().len() > GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR {
-            buf2 = &buf.as_ref()[GbaCartridgeHeader::RESERVED_AREA2_OFFSET..GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR];
+        if buf.as_ref().len() > GbaCartridgeHeader::RAM_ENTRY_BRANCH_INSTR_OFFSET {
+            buf2 = &buf.as_ref()[GbaCartridgeHeader::RESERVED_AREA2_OFFSET..GbaCartridgeHeader::RAM_ENTRY_BRANCH_INSTR_OFFSET];
             gba_header.reserved_area1.clone_from_slice(buf2);
         }
 
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn gbadata_from_slice() {
-        let mut data: Vec<u8> = vec![0x0u8; GbaCartridgeHeader::ROM_ENTRY_BRANCH_INSTR];
+        let mut data: Vec<u8> = vec![0x0u8; GbaCartridgeHeader::RAM_ENTRY_BRANCH_INSTR_OFFSET];
         data.splice(0..4, [0xEFu8, 0xBEu8, 0xADu8, 0xDEu8].iter().cloned());
         let gba = GbaData::from_slice(&data[..]);
         println!("addr: {:x}", gba.rom_entry());
