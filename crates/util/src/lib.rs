@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod gba;
 
-pub fn get_bits(i: u32, start: usize, end: usize) -> u32 {
-    let num_bits = end - start;
+pub fn get_bits(i: u32, lsb: usize, msb: usize) -> u32 {
+    let num_bits = msb - lsb + 1;
     let mask  = (1 << num_bits) - 1;
-    let result = i >> start;
+    let result = i >> lsb;
     result & mask
 }
 
