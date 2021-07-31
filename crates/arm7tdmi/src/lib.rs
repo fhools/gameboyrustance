@@ -10,6 +10,7 @@ pub mod arm;
 // ARM7TDMI is a 3 stage pipelined architecture, with fetch, decode, execute stages.
 //
 //
+#[derive(Debug, PartialEq)]
 pub enum InstructionType {
     DataProcessing,
     Branch,
