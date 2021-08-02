@@ -6,8 +6,9 @@
 
 [Gameboy Advanced Architecture - An Analysis](https://www.copetti.org/writings/consoles/game-boy-advance/)
 
-[mgba](https://mgba.io)
+[mgba](https://mgba.io) - MGBA is a modern GBA emulator
 
+[ARM7TDMI Instruction Set Architecture](https://www.ecs.csun.edu/~smirzaei/docs/ece425/arm7tdmi_instruction_set_reference.pdf) - The describes the ARM instruction bit format
 ## General emulator development resources
 [How to Write A Computer Emulator](http://fms.komkon.org/EMUL8/HOWTO.html)
 
