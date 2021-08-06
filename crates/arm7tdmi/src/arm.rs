@@ -1,5 +1,7 @@
 use super::ConditionField;
 use super::InstructionType;
+use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::io;
 use std::io::ErrorKind;
 use util::get_bits;
@@ -103,6 +105,7 @@ pub fn armv4_type(i: u32) -> ArmV4Type {
 
     panic!("Unknown instruction: 0x{:x}", i);
 }
+
 #[derive(Debug)]
 pub struct Instruction(u32);
 
@@ -144,7 +147,7 @@ impl Instruction {
 
     pub fn dataprocessing_opcode_str(&self) -> &'static str {
         let opcode = get_bits(self.0, 21, 24);
-        DataProcessing::OPCODE_NAMES[opcode as usize]
+        DataProcessingInstr::OPCODE_NAMES[opcode as usize]
     }
 
     pub fn s_bit(&self) -> bool {
@@ -180,7 +183,49 @@ impl Instruction {
     }
 }
 
-pub struct DataProcessing {}
+#[derive(Debug)]
+pub struct DataProcessingInstr {
+    opcode: DataProcessingOpCode,
+    operand2: DataProcessingOperand2,
+}
+
+impl DataProcessingInstr {
+    const OPCODE_NAMES: [&'static str; 16] = [
+        "AND", // 0b0000
+        "EOR", "SUB", "RSB", "ADD", "ADC", "SBC", "RSC", "TST", "TEQ", "CMP", "CMN", "ORR", "MOV",
+        "BIC", "MVN", // 0b1111
+    ];
+
+    fn new(i: u32) -> Self {
+        assert_eq!(armv4_type(i), ArmV4Type::DataProcessingPsr);
+        let opcode: DataProcessingOpCode = get_bits(i, 21, 24).try_into().unwrap();
+        let immbit = get_bits(i, 25, 25) == 1;
+        let mut operand2;
+
+        if immbit {
+            let rotate2 = get_bits(i, 8, 11);
+            let imm = get_bits(i, 0, 7);
+            operand2 = DataProcessingOperand2::ImmRot {
+                rotate_count: rotate2,
+                imm_value: imm,
+            };
+        } else {
+            if get_bits(i, 4, 4) == 0 {
+                operand2 = DataProcessingOperand2::ShiftRegDirect {
+                    shift_count: get_bits(i, 7, 11),
+                    shift_type: get_bits(i, 5, 6).try_into().unwrap(),
+                };
+            } else {
+                operand2 = DataProcessingOperand2::ShiftRegIndirect {
+                    shift_reg: get_bits(i, 7, 11) as usize,
+                    shift_type: get_bits(i, 5, 6).try_into().unwrap(),
+                };
+            }
+        }
+        DataProcessingInstr { opcode, operand2 }
+    }
+}
+
 #[derive(Debug)]
 pub enum DataProcessingOpCode {
     And = 0,
@@ -201,19 +246,56 @@ pub enum DataProcessingOpCode {
     Mvn = 15,
 }
 
+impl TryFrom<u32> for DataProcessingOpCode {
+    type Error = ();
+    fn try_from(v: u32) -> Result<Self, Self::Error> {
+        match v {
+            v if v == DataProcessingOpCode::And as u32 => Ok(DataProcessingOpCode::And),
+            v if v == DataProcessingOpCode::Eor as u32 => Ok(DataProcessingOpCode::Eor),
+            v if v == DataProcessingOpCode::Sub as u32 => Ok(DataProcessingOpCode::Sub),
+            v if v == DataProcessingOpCode::Rsb as u32 => Ok(DataProcessingOpCode::Rsb),
+            v if v == DataProcessingOpCode::Add as u32 => Ok(DataProcessingOpCode::Add),
+            v if v == DataProcessingOpCode::Adc as u32 => Ok(DataProcessingOpCode::Adc),
+            v if v == DataProcessingOpCode::Sbc as u32 => Ok(DataProcessingOpCode::Sbc),
+            v if v == DataProcessingOpCode::Rsc as u32 => Ok(DataProcessingOpCode::Rsc),
+            v if v == DataProcessingOpCode::Tst as u32 => Ok(DataProcessingOpCode::Tst),
+            v if v == DataProcessingOpCode::Teq as u32 => Ok(DataProcessingOpCode::Teq),
+            v if v == DataProcessingOpCode::Cmp as u32 => Ok(DataProcessingOpCode::Cmp),
+            v if v == DataProcessingOpCode::Cmn as u32 => Ok(DataProcessingOpCode::Cmn),
+            v if v == DataProcessingOpCode::Orr as u32 => Ok(DataProcessingOpCode::Orr),
+            v if v == DataProcessingOpCode::Mov as u32 => Ok(DataProcessingOpCode::Mov),
+            v if v == DataProcessingOpCode::Bic as u32 => Ok(DataProcessingOpCode::Bic),
+            v if v == DataProcessingOpCode::Mvn as u32 => Ok(DataProcessingOpCode::Mvn),
+            _ => Err(()),
+        }
+    }
+}
 #[derive(Debug)]
 pub enum ShiftType {
     LogicalLeft = 0b00,
     LogicalRight = 0b01,
     ArithmeticLeft = 0b10,
-    ArithemticRight = 0b11,
+    ArithmeticRight = 0b11,
+}
+
+impl TryFrom<u32> for ShiftType {
+    type Error = ();
+    fn try_from(v: u32) -> Result<Self, Self::Error> {
+        match v {
+            v if v == ShiftType::LogicalLeft as u32 => Ok(ShiftType::LogicalLeft),
+            v if v == ShiftType::LogicalRight as u32 => Ok(ShiftType::LogicalRight),
+            v if v == ShiftType::ArithmeticLeft as u32 => Ok(ShiftType::ArithmeticLeft),
+            v if v == ShiftType::ArithmeticRight as u32 => Ok(ShiftType::ArithmeticRight),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum DataProcessingOperand2 {
     // bits 11-7 = shift amount, bits 6-5 = shift type , bit 4 = 0
     ShiftRegDirect {
-        shift_count: usize,
+        shift_count: u32,
         shift_type: ShiftType,
     },
     // bits 11-7 = register #, bits 7 = 0, bits 6-5 = shift type, bit 4 = 1
@@ -224,18 +306,11 @@ pub enum DataProcessingOperand2 {
     // bits 11-8 = rotate amount, bits 7-0 = immediate value
     // shift ammount is rotate_amount * 2
     ImmRot {
-        rotate_count: usize,
-        imm_value: usize,
+        rotate_count: u32,
+        imm_value: u32,
     },
 }
 
-impl DataProcessing {
-    const OPCODE_NAMES: [&'static str; 16] = [
-        "AND", // 0b0000
-        "EOR", "SUB", "RSB", "ADD", "ADC", "SBC", "RSC", "TST", "TEQ", "CMP", "CMN", "ORR", "MOV",
-        "BIC", "MVN", // 0b1111
-    ];
-}
 pub struct ARMCpu {}
 
 mod tests {
@@ -264,6 +339,7 @@ mod tests {
         // e3a00301 mov r0, #0x4000.0000
         let i = Instruction::new(0xe3a00301);
         println!("op_code: {}", i.dataprocessing_opcode_str());
+        println!("instr: {:?}", DataProcessingInstr::new(i.0));
         assert_eq!(ArmV4Type::DataProcessingPsr, armv4_type(i.0));
     }
 
