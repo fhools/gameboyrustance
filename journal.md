@@ -9,6 +9,8 @@
 [mgba](https://mgba.io) - MGBA is a modern GBA emulator
 
 [ARM7TDMI Instruction Set Architecture](https://www.ecs.csun.edu/~smirzaei/docs/ece425/arm7tdmi_instruction_set_reference.pdf) - The describes the ARM instruction bit format
+
+[ARMv7 Instruction Set Encoding](https://developer.arm.com/documentation/ddi0406/cb/Application-Level-Architecture/ARM-Instruction-Set-Encoding/ARM-instruction-set-encoding) - Describes the ARMv7 instruction encoding(MUL vs Data Processing)
 ## General emulator development resources
 [How to Write A Computer Emulator](http://fms.komkon.org/EMUL8/HOWTO.html)
 
