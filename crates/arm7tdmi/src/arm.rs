@@ -185,6 +185,7 @@ impl Instruction {
 
 #[derive(Debug)]
 pub struct DataProcessingInstr {
+    i: u32,
     opcode: DataProcessingOpCode,
     operand2: DataProcessingOperand2,
 }
@@ -222,8 +223,88 @@ impl DataProcessingInstr {
                 };
             }
         }
-        DataProcessingInstr { opcode, operand2 }
+        DataProcessingInstr {
+            i,
+            opcode,
+            operand2,
+        }
     }
+}
+#[derive(Debug)]
+enum LoadStoreOpcode {
+    Str = 0,
+    Ldr = 1,
+}
+#[derive(Debug)]
+struct LoadStoreInstr {
+    i: u32,
+    opcode: LoadStoreOpcode,
+    rd: u8,
+    rn: u8,
+    write_back: bool,
+    byte_or_word: bool,
+    up_down: bool,
+    pre_post: bool,
+    offset: LoadStoreOffset,
+}
+
+impl LoadStoreInstr {
+    fn new(i: u32) -> Self {
+        let opcode = if get_bits(i, 20, 20) == 1 {
+            LoadStoreOpcode::Ldr
+        } else {
+            LoadStoreOpcode::Str
+        };
+        // Destination Register
+        let rd = get_bits(i, 12, 15);
+        // Base register
+        let rn = get_bits(i, 16, 19);
+        // 1 = Write back,
+        let write_back = get_bits(i, 21, 21) == 1;
+        // 1 = Byte
+        let byte_or_word = get_bits(i, 22, 22) == 1;
+        // 1 = Up
+        let up_down = get_bits(i, 23, 23) == 1;
+        // 1 = Pre
+        let pre_post = get_bits(i, 24, 24) == 1;
+        let offset;
+        if get_bits(i, 25, 25) == 1 {
+            let shift_count = get_bits(i, 7, 11);
+            let shift_type = get_bits(i, 5, 6);
+            let rm = get_bits(i, 0, 3);
+            offset = LoadStoreOffset::ShiftOffset {
+                shift_count,
+                shift_type: shift_type.try_into().unwrap(),
+                rm: rm as u8,
+            };
+        } else {
+            offset = LoadStoreOffset::ImmOffset {
+                imm: get_bits(i, 0, 11) as u16,
+            };
+        }
+        LoadStoreInstr {
+            i,
+            rd: rd as u8,
+            rn: rn as u8,
+            opcode,
+            write_back,
+            byte_or_word,
+            up_down,
+            pre_post,
+            offset,
+        }
+    }
+}
+#[derive(Debug)]
+enum LoadStoreOffset {
+    ImmOffset {
+        imm: u16,
+    },
+    ShiftOffset {
+        shift_count: u32,
+        shift_type: ShiftType,
+        rm: u8,
+    },
 }
 
 #[derive(Debug)]
@@ -351,5 +432,13 @@ mod tests {
             .map::<ArmV4Type, fn(&u32) -> ArmV4Type>(|&i| armv4_type(i))
             .collect::<Vec<ArmV4Type>>();
         println!("e: {:?}", e);
+    }
+
+    #[test]
+    fn test_loadstore_instruction() {
+        let i = Instruction::new(0xe59fd0b8);
+        let ldrstr = LoadStoreInstr::new(i.0);
+        println!("instr: {:?}", ldrstr);
+        assert_eq!(ArmV4Type::LoadStore, armv4_type(i.0));
     }
 }
