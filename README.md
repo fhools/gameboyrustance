@@ -1,2 +1,4 @@
 # gameboyrustance
-Gameboy Advanced Emulator written in Rust
+Game Boy Advanced Emulator written in Rust
+
+Currently working on dissassembler.
