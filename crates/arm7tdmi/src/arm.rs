@@ -184,8 +184,53 @@ impl Instruction {
 }
 
 #[derive(Debug)]
+pub enum DataProcessingOpCode {
+    And = 0,
+    Eor = 1,
+    Sub = 2,
+    Rsb = 3,
+    Add = 4,
+    Adc = 5,
+    Sbc = 6,
+    Rsc = 7,
+    Tst = 8,
+    Teq = 9,
+    Cmp = 10,
+    Cmn = 11,
+    Orr = 12,
+    Mov = 13,
+    Bic = 14,
+    Mvn = 15,
+}
+
+impl TryFrom<u32> for DataProcessingOpCode {
+    type Error = ();
+    fn try_from(v: u32) -> Result<Self, Self::Error> {
+        match v {
+            v if v == DataProcessingOpCode::And as u32 => Ok(DataProcessingOpCode::And),
+            v if v == DataProcessingOpCode::Eor as u32 => Ok(DataProcessingOpCode::Eor),
+            v if v == DataProcessingOpCode::Sub as u32 => Ok(DataProcessingOpCode::Sub),
+            v if v == DataProcessingOpCode::Rsb as u32 => Ok(DataProcessingOpCode::Rsb),
+            v if v == DataProcessingOpCode::Add as u32 => Ok(DataProcessingOpCode::Add),
+            v if v == DataProcessingOpCode::Adc as u32 => Ok(DataProcessingOpCode::Adc),
+            v if v == DataProcessingOpCode::Sbc as u32 => Ok(DataProcessingOpCode::Sbc),
+            v if v == DataProcessingOpCode::Rsc as u32 => Ok(DataProcessingOpCode::Rsc),
+            v if v == DataProcessingOpCode::Tst as u32 => Ok(DataProcessingOpCode::Tst),
+            v if v == DataProcessingOpCode::Teq as u32 => Ok(DataProcessingOpCode::Teq),
+            v if v == DataProcessingOpCode::Cmp as u32 => Ok(DataProcessingOpCode::Cmp),
+            v if v == DataProcessingOpCode::Cmn as u32 => Ok(DataProcessingOpCode::Cmn),
+            v if v == DataProcessingOpCode::Orr as u32 => Ok(DataProcessingOpCode::Orr),
+            v if v == DataProcessingOpCode::Mov as u32 => Ok(DataProcessingOpCode::Mov),
+            v if v == DataProcessingOpCode::Bic as u32 => Ok(DataProcessingOpCode::Bic),
+            v if v == DataProcessingOpCode::Mvn as u32 => Ok(DataProcessingOpCode::Mvn),
+            _ => Err(()),
+        }
+    }
+}
+#[derive(Debug)]
 pub struct DataProcessingInstr {
     i: u32,
+    cond: ConditionField,
     opcode: DataProcessingOpCode,
     operand2: DataProcessingOperand2,
 }
@@ -225,19 +270,79 @@ impl DataProcessingInstr {
         }
         DataProcessingInstr {
             i,
+            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
             opcode,
             operand2,
         }
     }
 }
+
+/*
+ * BX (Branch and Exchange). See ARM7TDMI Reference 4.3
+ *
+ * Branches to the address in rn, by setting pc = [rn].
+ *
+ * If bit 0 of rn is = 1. Then also sets the processor into THUMB mode. In THUMB mode instructions
+ * are 16 bits wide.
+ *
+ * Setting bit 0 of the address is valid because the in both ARM and THUMB mode, instructions are 4
+ * and 2 byte align and so bit 0 will be cleared before the actual jump, thus can be used to switch
+ * to THUMB mode
+ *
+ * Instruction Cycle Time:
+ *
+ *
+ */
+#[derive(Debug)]
+struct BxInstr {
+    i: u32,
+    cond: ConditionField,
+    rn: u8,
+}
+
+impl BxInstr {
+    fn new(i: u32) -> Self {
+        BxInstr {
+            i,
+            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
+            rn: get_bits(i, 0, 3) as u8,
+        }
+    }
+}
+
+/*
+ * B/BL (Branch and Branch with Link). See ARM7TDMI Reference 4.4
+ *
+ */
+#[derive(Debug)]
+struct BranchInstr {
+    i: u32,
+    cond: ConditionField,
+    link: bool,
+    offset: u32,
+}
+
+impl BranchInstr {
+    fn new(i: u32) -> Self {
+        BranchInstr {
+            i,
+            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
+            link: get_bits(i, 24, 24) == 1,
+            offset: get_bits(i, 0, 23),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum LoadStoreOpcode {
     Str = 0,
     Ldr = 1,
 }
+
 #[derive(Debug)]
 struct LoadStoreInstr {
     i: u32,
+    cond: ConditionField,
     opcode: LoadStoreOpcode,
     rd: u8,
     rn: u8,
@@ -284,6 +389,7 @@ impl LoadStoreInstr {
         }
         LoadStoreInstr {
             i,
+            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
             rd: rd as u8,
             rn: rn as u8,
             opcode,
@@ -295,6 +401,7 @@ impl LoadStoreInstr {
         }
     }
 }
+
 #[derive(Debug)]
 enum LoadStoreOffset {
     ImmOffset {
@@ -307,50 +414,6 @@ enum LoadStoreOffset {
     },
 }
 
-#[derive(Debug)]
-pub enum DataProcessingOpCode {
-    And = 0,
-    Eor = 1,
-    Sub = 2,
-    Rsb = 3,
-    Add = 4,
-    Adc = 5,
-    Sbc = 6,
-    Rsc = 7,
-    Tst = 8,
-    Teq = 9,
-    Cmp = 10,
-    Cmn = 11,
-    Orr = 12,
-    Mov = 13,
-    Bic = 14,
-    Mvn = 15,
-}
-
-impl TryFrom<u32> for DataProcessingOpCode {
-    type Error = ();
-    fn try_from(v: u32) -> Result<Self, Self::Error> {
-        match v {
-            v if v == DataProcessingOpCode::And as u32 => Ok(DataProcessingOpCode::And),
-            v if v == DataProcessingOpCode::Eor as u32 => Ok(DataProcessingOpCode::Eor),
-            v if v == DataProcessingOpCode::Sub as u32 => Ok(DataProcessingOpCode::Sub),
-            v if v == DataProcessingOpCode::Rsb as u32 => Ok(DataProcessingOpCode::Rsb),
-            v if v == DataProcessingOpCode::Add as u32 => Ok(DataProcessingOpCode::Add),
-            v if v == DataProcessingOpCode::Adc as u32 => Ok(DataProcessingOpCode::Adc),
-            v if v == DataProcessingOpCode::Sbc as u32 => Ok(DataProcessingOpCode::Sbc),
-            v if v == DataProcessingOpCode::Rsc as u32 => Ok(DataProcessingOpCode::Rsc),
-            v if v == DataProcessingOpCode::Tst as u32 => Ok(DataProcessingOpCode::Tst),
-            v if v == DataProcessingOpCode::Teq as u32 => Ok(DataProcessingOpCode::Teq),
-            v if v == DataProcessingOpCode::Cmp as u32 => Ok(DataProcessingOpCode::Cmp),
-            v if v == DataProcessingOpCode::Cmn as u32 => Ok(DataProcessingOpCode::Cmn),
-            v if v == DataProcessingOpCode::Orr as u32 => Ok(DataProcessingOpCode::Orr),
-            v if v == DataProcessingOpCode::Mov as u32 => Ok(DataProcessingOpCode::Mov),
-            v if v == DataProcessingOpCode::Bic as u32 => Ok(DataProcessingOpCode::Bic),
-            v if v == DataProcessingOpCode::Mvn as u32 => Ok(DataProcessingOpCode::Mvn),
-            _ => Err(()),
-        }
-    }
-}
 #[derive(Debug)]
 pub enum ShiftType {
     LogicalLeft = 0b00,
@@ -440,5 +503,16 @@ mod tests {
         let ldrstr = LoadStoreInstr::new(i.0);
         println!("instr: {:?}", ldrstr);
         assert_eq!(ArmV4Type::LoadStore, armv4_type(i.0));
+    }
+
+    #[test]
+    fn test_bl_instruction() {
+        // bne + 5
+        let i = Instruction::new(0x1a000005);
+        let bl = BranchInstr::new(i.0);
+        println!("instr: {:?}", bl);
+        assert_eq!(ArmV4Type::Branch, armv4_type(i.0));
+        assert_eq!(bl.cond.0, ConditionField::COND_NE);
+        assert_eq!(bl.offset, 5);
     }
 }
