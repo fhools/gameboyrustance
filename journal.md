@@ -160,7 +160,17 @@ Memory instructions have 3 operands:
     - Destination for LDR or Source for STR
 
 ## Branch Instructions
-Branch instructions take a 24-bit immediate addr offset
+Branch instructions take a 24-bit immediate addr offset, target = addr*4 + 8
+
+## ADR 
+ADR is a pseudo-instruction, that will turn into an ADD or SUB to load aregister with a value
+START      MOV R0, #10
+           ADR R4, START 
+
+This ADR will turn into
+           SUB R4, PC, #0xC 
+Since PC will be +8 that address turns into PC + 8 - 12 = PC - 4 = address of START
+
 
 
 # ARMv4 32-bit instruction

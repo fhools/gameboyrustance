@@ -9,7 +9,7 @@ use util::get_bits;
 #[derive(Debug, PartialEq)]
 pub enum ArmV4Type {
     Multiply,
-    MultiplyAccum,
+    MultiplyLong,
     BranchAndExchange,
     SingleDataSwap,
     HalfwordDataTransferReg,
@@ -35,7 +35,7 @@ pub fn armv4_type(i: u32) -> ArmV4Type {
 
     let bits27_23 = get_bits(i, 23, 27);
     if bits27_23 == 1 && bits7_4 == 0b1001 {
-        return ArmV4Type::MultiplyAccum;
+        return ArmV4Type::MultiplyLong;
     }
 
     let bits27_4 = get_bits(i, 4, 27);
@@ -455,6 +455,43 @@ pub enum DataProcessingOperand2 {
     },
 }
 
+#[derive(Debug)]
+pub struct MulLongInstr {
+    i: u32,
+    cond: ConditionField,
+    unsigned: bool,
+    accumulate: bool,
+    s: bool,
+    rdhi: u8,
+    rdlo: u8,
+    rs: u8,
+    rm: u8,
+}
+
+impl MulLongInstr {
+    fn new(i: u32) -> Self {
+        let cond = ConditionField::new(get_bits(i, 28, 31) as u8);
+        let unsigned = get_bits(i, 22, 22) == 0;
+        let accumulate = get_bits(i, 21, 21) == 1;
+        let s = get_bits(i, 20, 20) == 1;
+        let rdhi = get_bits(i, 16, 19) as u8;
+        let rdlo = get_bits(i, 12, 15) as u8;
+        let rs = get_bits(i, 8, 11) as u8;
+        let rm = get_bits(i, 0, 3) as u8;
+        MulLongInstr {
+            i,
+            cond,
+            unsigned,
+            accumulate,
+            s,
+            rdhi,
+            rdlo,
+            rs,
+            rm,
+        }
+    }
+}
+
 pub struct ARMCpu {}
 
 mod tests {
@@ -514,5 +551,18 @@ mod tests {
         assert_eq!(ArmV4Type::Branch, armv4_type(i.0));
         assert_eq!(bl.cond.0, ConditionField::COND_NE);
         assert_eq!(bl.offset, 5);
+    }
+
+    #[test]
+    fn test_mul_instruction() {
+        // UMULL     R1,R4,R2,R3
+        let i = Instruction::new(0xe0841392);
+        let mul = MulLongInstr::new(i.0);
+        assert_eq!(ArmV4Type::MultiplyLong, armv4_type(i.0));
+        assert_eq!(mul.rdlo, 1);
+        assert_eq!(mul.rdhi, 4);
+        assert_eq!(mul.unsigned, true);
+        assert_eq!(mul.rm, 2);
+        assert_eq!(mul.rs, 3);
     }
 }
