@@ -6,6 +6,10 @@ use std::io;
 use std::io::ErrorKind;
 use util::get_bits;
 
+macro_rules! cond {
+    ($i:ident) => {  ConditionField::new(get_bits($i, 28, 31) as u8) };
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ArmV4Type {
     Multiply,
@@ -304,7 +308,7 @@ impl BxInstr {
     fn new(i: u32) -> Self {
         BxInstr {
             i,
-            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
+            cond: cond!(i),
             rn: get_bits(i, 0, 3) as u8,
         }
     }
@@ -326,7 +330,7 @@ impl BranchInstr {
     fn new(i: u32) -> Self {
         BranchInstr {
             i,
-            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
+            cond: cond!(i),
             link: get_bits(i, 24, 24) == 1,
             offset: get_bits(i, 0, 23),
         }
@@ -389,7 +393,7 @@ impl LoadStoreInstr {
         }
         LoadStoreInstr {
             i,
-            cond: ConditionField::new(get_bits(i, 28, 31) as u8),
+            cond: cond!(i),
             rd: rd as u8,
             rn: rn as u8,
             opcode,
@@ -470,7 +474,7 @@ pub struct MulLongInstr {
 
 impl MulLongInstr {
     fn new(i: u32) -> Self {
-        let cond = ConditionField::new(get_bits(i, 28, 31) as u8);
+        let cond = cond!(i);
         let unsigned = get_bits(i, 22, 22) == 0;
         let accumulate = get_bits(i, 21, 21) == 1;
         let s = get_bits(i, 20, 20) == 1;
@@ -488,6 +492,73 @@ impl MulLongInstr {
             rdlo,
             rs,
             rm,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MulInstr {
+    i: u32,
+    cond: ConditionField,
+    accumulate: bool,
+    s: bool,
+    rd: u8,
+    rn: u8,
+    rs: u8,
+    rm: u8,
+}
+
+impl MulInstr {
+    fn new(i: u32) -> Self {
+        let cond = cond!(i);
+        let accumulate = get_bits(i,21,21) == 1;
+        let s = get_bits(i,20,20) == 1;
+        let rd = get_bits(i,16,19) as u8;
+        let rn = get_bits(i,12,15) as u8;
+        let rs = get_bits(i,8,11) as u8;
+        let rm = get_bits(i,0,3) as u8;
+        MulInstr {
+            i, 
+            cond,
+            accumulate,
+            s,
+            rd,
+            rn,
+            rs,
+            rm,
+        }
+    }
+}
+
+// SWP Rd, Rm, [Rn]
+// Reads contents of address [Rn],
+// Writes contents of source register Rm, puts it into [Rn], 
+// Writes old contents of [Rn] into Rd
+// Rd and Rm may be the same register
+#[derive(Debug)]
+pub struct SingleDataSwapInstr {
+    i: u32,
+    cond: ConditionField,
+    b: bool,
+    rn: u8,
+    rd: u8,
+    rm: u8,
+}
+
+impl SingleDataSwapInstr {
+    fn new(i: u32) -> Self {
+        let cond = cond!(i);
+        let b = get_bits(i,22,22) == 1;
+        let rn = get_bits(i,16,19) as u8;
+        let rd = get_bits(i,12,15) as u8;
+        let rm = get_bits(i,0,3) as u8;
+        SingleDataSwapInstr {
+            i,
+            cond,
+            b,
+            rn,
+            rd,
+            rm
         }
     }
 }
@@ -554,15 +625,38 @@ mod tests {
     }
 
     #[test]
-    fn test_mul_instruction() {
+    fn test_mull_instruction() {
         // UMULL     R1,R4,R2,R3
         let i = Instruction::new(0xe0841392);
-        let mul = MulLongInstr::new(i.0);
+        let mull = MulLongInstr::new(i.0);
+        println!("instr: {:?}", mull);
         assert_eq!(ArmV4Type::MultiplyLong, armv4_type(i.0));
-        assert_eq!(mul.rdlo, 1);
-        assert_eq!(mul.rdhi, 4);
-        assert_eq!(mul.unsigned, true);
-        assert_eq!(mul.rm, 2);
-        assert_eq!(mul.rs, 3);
+        assert_eq!(mull.rdlo, 1);
+        assert_eq!(mull.rdhi, 4);
+        assert_eq!(mull.unsigned, true);
+        assert_eq!(mull.rm, 2);
+        assert_eq!(mull.rs, 3);
+    }
+
+    #[test]
+    fn test_mul_instruction() {
+        // MUL    r4,r3,r2 
+        let mul = MulInstr::new(0xe0040293);
+        println!("instr: {:?}", mul);
+        assert_eq!(ArmV4Type::Multiply, armv4_type(0xe0040293));
+        assert_eq!(mul.rd, 4);
+        assert_eq!(mul.rm, 3);
+        assert_eq!(mul.rs, 2);
+    }
+    
+    #[test]
+    fn test_swp_instruction() {
+        // swp r4,r3,[r2]
+        let swp = SingleDataSwapInstr::new(0xe1024093);
+        println!("instr: {:?}", swp);
+        assert_eq!(swp.b, false);
+        assert_eq!(swp.rd, 4);
+        assert_eq!(swp.rm, 3);
+        assert_eq!(swp.rn, 2);
     }
 }

@@ -11,6 +11,8 @@
 [ARM7TDMI Instruction Set Architecture](https://www.ecs.csun.edu/~smirzaei/docs/ece425/arm7tdmi_instruction_set_reference.pdf) - The describes the ARM instruction bit format
 
 [ARMv7 Instruction Set Encoding](https://developer.arm.com/documentation/ddi0406/cb/Application-Level-Architecture/ARM-Instruction-Set-Encoding/ARM-instruction-set-encoding) - Describes the ARMv7 instruction encoding(MUL vs Data Processing)
+
+[Compiler Explorer](https://godbolt.org) This is a great resource to input assembly and get binary instruction encodings
 ## General emulator development resources
 [How to Write A Computer Emulator](http://fms.komkon.org/EMUL8/HOWTO.html)
 
@@ -18,6 +20,8 @@
 [GBA Assembly Bare Metal Github](https://github.com/PeterLemon/GBA)
 
 [DevKit Pro](https://devkitpro.org/wiki/Getting_Started) A GBA toolchain
+
+
 
 # Testing
 We need a way to test our emulator.
