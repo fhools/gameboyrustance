@@ -12,7 +12,11 @@
 
 [ARMv7 Instruction Set Encoding](https://developer.arm.com/documentation/ddi0406/cb/Application-Level-Architecture/ARM-Instruction-Set-Encoding/ARM-instruction-set-encoding) - Describes the ARMv7 instruction encoding(MUL vs Data Processing)
 
+
+[ARM DDI 0100E](http://datasheets.chipdb.org/ARM/arm.pdf) This has the instruction set encoding for ARM and THUMB
+
 [Compiler Explorer](https://godbolt.org) This is a great resource to input assembly and get binary instruction encodings
+
 ## General emulator development resources
 [How to Write A Computer Emulator](http://fms.komkon.org/EMUL8/HOWTO.html)
 

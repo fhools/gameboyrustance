@@ -7,7 +7,9 @@ use std::io::ErrorKind;
 use util::get_bits;
 
 macro_rules! cond {
-    ($i:ident) => {  ConditionField::new(get_bits($i, 28, 31) as u8) };
+    ($i:ident) => {
+        ConditionField::new(get_bits($i, 28, 31) as u8)
+    };
 }
 
 #[derive(Debug, PartialEq)]
@@ -18,6 +20,8 @@ pub enum ArmV4Type {
     SingleDataSwap,
     HalfwordDataTransferReg,
     HalfwordDataTransferImm,
+    SignedHalfwordByteLoadReg,
+    SignedHalfwordByteLoadImm,
     SignedDataTransfer,
     DataProcessingPsr,
     LoadStore,
@@ -30,6 +34,10 @@ pub enum ArmV4Type {
     SoftwareInterrupt,
 }
 
+/*
+ * The order and list of instruction is taken from Table in arm7tdmi_instruction_set_reference.pdf Section
+ * 1.1 on page 1.
+ */
 pub fn armv4_type(i: u32) -> ArmV4Type {
     let bits27_22 = get_bits(i, 22, 27);
     let bits7_4 = get_bits(i, 4, 7);
@@ -55,18 +63,15 @@ pub fn armv4_type(i: u32) -> ArmV4Type {
 
     let bits27_25 = get_bits(i, 25, 27);
     let bit22 = get_bits(i, 22, 22);
-    if bits27_25 == 0 && bit22 == 0 && bits11_4 == 0b0000_1011 {
+    let bits11_7 = get_bits(i, 7, 11);
+    let bit4 = get_bits(i, 4, 4);
+    if bits27_25 == 0 && bit22 == 0 && bits11_7 == 0b0000_1 && bit4 == 1 {
         return ArmV4Type::HalfwordDataTransferReg;
     }
 
-    if bits27_25 == 0 && bit22 == 1 && bits7_4 == 0b1011 {
+    let bit7 = get_bits(i, 7, 7);
+    if bits27_25 == 0 && bit22 == 1 && bit7 == 1 && bit4 == 1 {
         return ArmV4Type::HalfwordDataTransferImm;
-    }
-
-    let bits7_6 = get_bits(i, 6, 7);
-    let bit4 = get_bits(i, 4, 4);
-    if bits27_25 == 0 && bits7_6 == 0b11 && bit4 == 1 {
-        return ArmV4Type::SignedDataTransfer;
     }
 
     let bits27_26 = get_bits(i, 26, 27);
@@ -511,14 +516,14 @@ pub struct MulInstr {
 impl MulInstr {
     fn new(i: u32) -> Self {
         let cond = cond!(i);
-        let accumulate = get_bits(i,21,21) == 1;
-        let s = get_bits(i,20,20) == 1;
-        let rd = get_bits(i,16,19) as u8;
-        let rn = get_bits(i,12,15) as u8;
-        let rs = get_bits(i,8,11) as u8;
-        let rm = get_bits(i,0,3) as u8;
+        let accumulate = get_bits(i, 21, 21) == 1;
+        let s = get_bits(i, 20, 20) == 1;
+        let rd = get_bits(i, 16, 19) as u8;
+        let rn = get_bits(i, 12, 15) as u8;
+        let rs = get_bits(i, 8, 11) as u8;
+        let rm = get_bits(i, 0, 3) as u8;
         MulInstr {
-            i, 
+            i,
             cond,
             accumulate,
             s,
@@ -532,7 +537,7 @@ impl MulInstr {
 
 // SWP Rd, Rm, [Rn]
 // Reads contents of address [Rn],
-// Writes contents of source register Rm, puts it into [Rn], 
+// Writes contents of source register Rm, puts it into [Rn],
 // Writes old contents of [Rn] into Rd
 // Rd and Rm may be the same register
 #[derive(Debug)]
@@ -548,17 +553,84 @@ pub struct SingleDataSwapInstr {
 impl SingleDataSwapInstr {
     fn new(i: u32) -> Self {
         let cond = cond!(i);
-        let b = get_bits(i,22,22) == 1;
-        let rn = get_bits(i,16,19) as u8;
-        let rd = get_bits(i,12,15) as u8;
-        let rm = get_bits(i,0,3) as u8;
+        let b = get_bits(i, 22, 22) == 1;
+        let rn = get_bits(i, 16, 19) as u8;
+        let rd = get_bits(i, 12, 15) as u8;
+        let rm = get_bits(i, 0, 3) as u8;
         SingleDataSwapInstr {
             i,
             cond,
             b,
             rn,
             rd,
-            rm
+            rm,
+        }
+    }
+}
+
+/*
+ * Halfword and signed byte Load/stores
+ *
+ */
+#[derive(Debug)]
+pub struct HalfWordDataTransferRegInstr {
+    i: u32,
+    cond: ConditionField,
+    pre: bool,
+    u: bool,
+    w: bool,
+    rn: u8,
+    rd: u8,
+    sh: HalfwordSignedByteInstrType,
+    rm: u8,
+}
+
+impl HalfWordDataTransferRegInstr {
+    fn new(i: u32) -> Self {
+        let cond = cond!(i);
+        let pre = get_bits(i, 24, 24) == 1;
+        let u = get_bits(i, 23, 23) == 1;
+        let w = get_bits(i, 21, 21) == 1;
+        let l = get_bits(i, 20, 20) == 1;
+        let rn = get_bits(i, 16, 19) as u8;
+        let rd = get_bits(i, 12, 15) as u8;
+        let sh = get_bits(i, 5, 6).try_into().unwrap();
+        let rm = get_bits(i, 0, 3) as u8;
+        HalfWordDataTransferRegInstr {
+            i,
+            cond,
+            pre,
+            u,
+            w,
+            rn,
+            rd,
+            sh,
+            rm,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum HalfwordSignedByteInstrType {
+    UnsignedHalfword = 0b01,
+    SignedByte = 0b10,
+    SignedHalfword = 0b11,
+}
+
+impl TryFrom<u32> for HalfwordSignedByteInstrType {
+    type Error = ();
+    fn try_from(v: u32) -> Result<Self, Self::Error> {
+        match v {
+            v if v == HalfwordSignedByteInstrType::UnsignedHalfword as u32 => {
+                Ok(HalfwordSignedByteInstrType::UnsignedHalfword)
+            }
+            v if v == HalfwordSignedByteInstrType::SignedByte as u32 => {
+                Ok(HalfwordSignedByteInstrType::SignedByte)
+            }
+            v if v == HalfwordSignedByteInstrType::SignedHalfword as u32 => {
+                Ok(HalfwordSignedByteInstrType::SignedHalfword)
+            }
+            _ => Err(()),
         }
     }
 }
@@ -640,7 +712,7 @@ mod tests {
 
     #[test]
     fn test_mul_instruction() {
-        // MUL    r4,r3,r2 
+        // MUL    r4,r3,r2
         let mul = MulInstr::new(0xe0040293);
         println!("instr: {:?}", mul);
         assert_eq!(ArmV4Type::Multiply, armv4_type(0xe0040293));
@@ -648,7 +720,7 @@ mod tests {
         assert_eq!(mul.rm, 3);
         assert_eq!(mul.rs, 2);
     }
-    
+
     #[test]
     fn test_swp_instruction() {
         // swp r4,r3,[r2]
@@ -658,5 +730,15 @@ mod tests {
         assert_eq!(swp.rd, 4);
         assert_eq!(swp.rm, 3);
         assert_eq!(swp.rn, 2);
+    }
+
+    #[test]
+    fn test_ldrh_instruction() {
+        // ldrh	r1, [r2, -r3]!
+        let ldrh_w = HalfWordDataTransferRegInstr::new(0xe13210b3);
+        let ldrh = HalfWordDataTransferRegInstr::new(0xe11210b3);
+        println!("instr: {:?}", ldrh);
+        println!("instr: {:?}", ldrh_w);
+        assert_eq!(ldrh.rd, 1);
     }
 }
